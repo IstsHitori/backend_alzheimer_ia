@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
+from enum import Enum
 from transformers import AutoImageProcessor, SiglipForImageClassification
 from PIL import Image
 import torch
@@ -20,12 +21,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Enum for diagnosis
+class DIAGNOSIS(str, Enum):
+    NO_DEMENTED = "No Demente"
+    VERY_MILD_DEMENTED = "Alzheimer Leve"
+    MILD_DEMENTED = "Alzheimer Moderado"
+    MODERATE_DEMENTED = "Alzheimer Severo"
+
 # Request model
 class ImageData(BaseModel):
     fileUrl: str
     fileName: str
 
 class AnalysisRequest(BaseModel):
+    patientId: str
+    token: str
     images: List[ImageData]
 
 # Load model and processor
@@ -57,6 +67,24 @@ def classify_alzheimer_stage(image):
     return prediction
 
 
+def get_diagnosis_from_prediction(prediction: dict) -> DIAGNOSIS:
+    """
+    Get diagnosis based on highest percentage
+    """
+    # Find the key with highest value
+    max_key = max(prediction, key=prediction.get)
+    
+    # Map model output to DIAGNOSIS enum
+    diagnosis_mapping = {
+        "NonDemented": DIAGNOSIS.NO_DEMENTED,
+        "VeryMildDemented": DIAGNOSIS.VERY_MILD_DEMENTED,
+        "MildDemented": DIAGNOSIS.MILD_DEMENTED,
+        "ModerateDemented": DIAGNOSIS.MODERATE_DEMENTED
+    }
+    
+    return diagnosis_mapping[max_key]
+
+
 def download_image_from_url(url: str):
     """
     Download image from Cloudinary URL
@@ -75,11 +103,11 @@ async def root():
 @app.post("/analyze")
 async def analyze_images(request: AnalysisRequest):
     """
-    Analyze multiple images from Cloudinary URLs
-    Returns array with url, fileName and analysis for each image
+    Analyze multiple images from Cloudinary URLs and send results to NestJS backend
     """
-    results = []
+    image_analyses = []
     
+    # Process each image
     for image_data in request.images:
         try:
             # Download image from Cloudinary
@@ -88,19 +116,60 @@ async def analyze_images(request: AnalysisRequest):
             # Analyze image with AI model
             analysis = classify_alzheimer_stage(image)
             
-            # Append result
-            results.append({
-                "fileUrl": image_data.fileUrl,
+            # Get diagnosis based on highest percentage
+            diagnosis = get_diagnosis_from_prediction(analysis)
+            
+            # Convert percentages to 0-100 scale
+            image_analysis = {
+                "imageUrl": image_data.fileUrl,
                 "fileName": image_data.fileName,
-                "analysis": analysis
-            })
+                "diagnosis": diagnosis.value,
+                "nonDemented": round(analysis["NonDemented"] * 100, 2),
+                "veryMildDemented": round(analysis["VeryMildDemented"] * 100, 2),
+                "mildDemented": round(analysis["MildDemented"] * 100, 2),
+                "moderateDemented": round(analysis["ModerateDemented"] * 100, 2)
+            }
+            
+            image_analyses.append(image_analysis)
             
         except Exception as e:
-            # If error occurs, include error message
-            results.append({
-                "fileUrl": image_data.fileUrl,
-                "fileName": image_data.fileName,
-                "error": str(e)
-            })
+            print(f"Error processing image {image_data.fileName}: {str(e)}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Error processing image {image_data.fileName}: {str(e)}"
+            )
     
-    return {"results": results}
+    # Prepare payload for NestJS backend
+    payload = {
+        "patientId": request.patientId,
+        "imageAnalysis": image_analyses
+    }
+    
+    # Send results to NestJS backend
+    try:
+        nestjs_response = requests.post(
+            "http://localhost:3000/api/v1/analysis",
+            json=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {request.token}"
+            },
+            timeout=30
+        )
+        nestjs_response.raise_for_status()
+        
+        # Return success message
+        num_images = len(image_analyses)
+        message = f"Análisis de {'la imagen' if num_images == 1 else 'las imágenes'} completado"
+        
+        return {
+            "message": message,
+            "imagesProcessed": num_images
+        }
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Error sending data to NestJS backend: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error enviando datos al backend: {str(e)}"
+        )
