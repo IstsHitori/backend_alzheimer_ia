@@ -7,3 +7,4 @@ build/
 *.egg-info/
 pip-log.txt
 .vscode/
+.env
