@@ -6,3 +6,4 @@ Pillow
 requests
 pydantic
 pydantic-settings
+python-dotenv

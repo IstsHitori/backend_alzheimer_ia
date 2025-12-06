@@ -8,6 +8,11 @@ from PIL import Image
 import torch
 import requests
 from io import BytesIO
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 app = FastAPI()
@@ -147,8 +152,9 @@ async def analyze_images(request: AnalysisRequest):
     
     # Send results to NestJS backend
     try:
+        nestjs_backend_url = os.getenv("NESTJS_BACKEND_URL", "http://localhost:3000/api/v1/analysis")
         nestjs_response = requests.post(
-            "http://localhost:3000/api/v1/analysis",
+            nestjs_backend_url,
             json=payload,
             headers={
                 "Content-Type": "application/json",
