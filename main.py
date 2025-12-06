@@ -158,14 +158,8 @@ async def analyze_images(request: AnalysisRequest):
         )
         nestjs_response.raise_for_status()
         
-        # Return success message
-        num_images = len(image_analyses)
-        message = f"Análisis de {'la imagen' if num_images == 1 else 'las imágenes'} completado"
-        
-        return {
-            "message": message,
-            "imagesProcessed": num_images
-        }
+        # Return the response from NestJS backend
+        return nestjs_response.json()
         
     except requests.exceptions.RequestException as e:
         print(f"Error sending data to NestJS backend: {str(e)}")
