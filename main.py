@@ -29,8 +29,8 @@ app.add_middleware(
 # Enum for diagnosis
 class DIAGNOSIS(str, Enum):
     NO_DEMENTED = "No Demente"
-    VERY_MILD_DEMENTED = "Alzheimer Leve"
-    MILD_DEMENTED = "Alzheimer Moderado"
+    VERY_MILD_DEMENTED = "Alzheimer muy leve"
+    MILD_DEMENTED = "Alzheimer leve"
     MODERATE_DEMENTED = "Alzheimer Severo"
 
 # Request model
