@@ -29,8 +29,8 @@ app.add_middleware(
 # Enum for diagnosis
 class DIAGNOSIS(str, Enum):
     NO_DEMENTED = "No Demente"
-    VERY_MILD_DEMENTED = "Alzheimer muy leve"
-    MILD_DEMENTED = "Alzheimer leve"
+    VERY_MILD_DEMENTED = "Alzheimer Muy Leve"
+    MILD_DEMENTED = "Alzheimer Leve"
     MODERATE_DEMENTED = "Alzheimer Severo"
 
 # Request model
@@ -68,7 +68,6 @@ def classify_alzheimer_stage(image):
         probs = torch.nn.functional.softmax(logits, dim=1).squeeze().tolist()
 
     prediction = {id2label[str(i)]: round(probs[i], 3) for i in range(len(probs))}
-    print(prediction)
     return prediction
 
 
@@ -162,8 +161,8 @@ async def analyze_images(request: AnalysisRequest):
             },
             timeout=30
         )
+
         nestjs_response.raise_for_status()
-        
         # Return the response from NestJS backend
         return nestjs_response.json()
         
